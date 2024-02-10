@@ -1,9 +1,10 @@
-install.packages(c("nortest", "car", "readr","Rmisc","psych"))
+install.packages(c("nortest", "car", "readr","Rmisc","psych","fitdistrplus"))
 library(nortest)
 library(car)
 library(readr)
 library(Rmisc)
 library(psych)
+library(fitdistrplus)
 
 #Load Dataframe ")
 data <- read.csv("/Users/brandonhendrickson/Documents/Github_Projects/M_guttatus_ReproductiveAllocation/Data/csv/raw_data.csv")
@@ -101,13 +102,8 @@ for (trait in trait_list) {
 print(all_tests_df)
 
 test_model <- merge(all_tests_df, summary_df, by = "Trait")
-test_model$MODEL <- ifelse(test_model$P_Value < 0.05, "GEE", "GLM")
 # Remove the "2-mle-" string from the "Best_Model" column
 test_model$Best_Model <- sub("\\d-mle-", "", test_model$Best_Model)
-# Replace "gamma" and "exp" with "Gamma"
-test_model$Best_Model <- sub("gamma", "Gamma", test_model$Best_Model)
-test_model$Best_Model <- sub("exp", "Gamma", test_model$Best_Model)
-# Replace "logis" with "binomial"
-test_model$Best_Model <- sub("logis", "binomial", test_model$Best_Model)
+
 
 write.csv(test_model, "/Users/brandonhendrickson/Documents/Github_Projects/M_guttatus_ReproductiveAllocation/Data/csv/test_model.csv")
