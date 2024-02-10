@@ -360,7 +360,7 @@ ggplot(means_D2Flowering, aes(x = Final_Density, y = emmean, color = age, group 
     geom_line(position = position_dodge(width = 0.5)) +
     geom_errorbar(aes(ymin = emmean - SE, ymax = emmean + SE), width = 0.1, position = position_dodge(width = 0.5)) +
     geom_point(position = position_dodge(width = 0.5)) +
-    scale_color_manual(values = wes_palette("GrandBudapest1")) +
+    scale_color_manual(values = wes_palette("Zissou1")) +
     labs(
         title = "Least Square Means and Standard Error \n for Day to Flowering",
         x = "Final Density",
@@ -373,7 +373,7 @@ ggplot(means_flower_number_1, aes(x = Final_Density, y = emmean, color = age, gr
     geom_line(position = position_dodge(width = 0.5)) +
     geom_errorbar(aes(ymin = emmean - SE, ymax = emmean + SE), width = 0.1, position = position_dodge(width = 0.5)) +
     geom_point(position = position_dodge(width = 0.5)) +
-    scale_color_manual(values = wes_palette("GrandBudapest1")) +
+    scale_color_manual(values = wes_palette("Zissou1")) +
     labs(
         title = "Least Square Means and Standard Error \n for Flower Number",
         x = "Final Density",
@@ -386,7 +386,7 @@ ggplot(means_yield, aes(x = Final_Density, y = emmean, color = age, group = age)
     geom_line(position = position_dodge(width = 0.5)) +
     geom_errorbar(aes(ymin = emmean - SE, ymax = emmean + SE), width = 0.1, position = position_dodge(width = 0.5)) +
     geom_point(position = position_dodge(width = 0.5)) +
-    scale_color_manual(values = wes_palette("GrandBudapest1")) +
+    scale_color_manual(values = wes_palette("Zissou1")) +
     labs(
         title = "Least Square Means and Standard Error \n for Yield",
         x = "Final Density",
@@ -399,7 +399,7 @@ ggplot(means_pollen_avg, aes(x = Final_Density, y = emmean, color = age, group =
     geom_line(position = position_dodge(width = 0.5)) +
     geom_errorbar(aes(ymin = emmean - SE, ymax = emmean + SE), width = 0.1, position = position_dodge(width = 0.5)) +
     geom_point(position = position_dodge(width = 0.5)) +
-    scale_color_manual(values = wes_palette("GrandBudapest1")) +
+    scale_color_manual(values = wes_palette("Zissou1")) +
     labs(
         title = "Least Square Means and Standard Error \n for Pollen Average",
         x = "Final Density",
@@ -418,7 +418,7 @@ ggplot(average_means, aes(x = Final_Density, y = emmean, color = F_LF, group = F
     geom_line(position = position_dodge(width = 0.5)) +
     geom_errorbar(aes(ymin = emmean - SE, ymax = emmean + SE), width = 0.1, position = position_dodge(width = 0.5)) +
     geom_point(position = position_dodge(width = 0.5)) +
-    scale_color_manual(values = wes_palette("GrandBudapest1")) +
+    scale_color_manual(values = wes_palette("Zissou1")) +
     labs(
         title = "Least Square Means and Standard Error \n for Pollen Average",
         x = "Final Density",
@@ -438,7 +438,7 @@ ggplot(average_means, aes(x = Final_Density, y = emmean, color = F_LF, group = F
     geom_line(position = position_dodge(width = 0.5)) +
     geom_errorbar(aes(ymin = emmean - SE, ymax = emmean + SE), width = 0.1, position = position_dodge(width = 0.5)) +
     geom_point(position = position_dodge(width = 0.5)) +
-    scale_color_manual(values = wes_palette("GrandBudapest1")) +
+    scale_color_manual(values = wes_palette("Zissou1")) +
     labs(
         title = "Least Square Means and Standard Error \n for Flower Number",
         x = "Final Density",
