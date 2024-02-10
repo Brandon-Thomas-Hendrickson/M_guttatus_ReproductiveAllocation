@@ -1,5 +1,5 @@
 # Install the package
-install.packages(c("geepack", "readr", "sjPlot", "MASS", "stats","emmeans","wesanderson"))
+install.packages(c("ggplot2","geepack", "readr", "sjPlot", "MASS", "stats","emmeans","wesanderson","ggpubr","purrr"))
 
 # Load the package
 library(readr)
@@ -8,6 +8,143 @@ library(MASS)
 library(stats)
 library(emmeans)
 library(wesanderson)
+library(ggpubr)
+library(ggplot2)
+library(purrr)
+
+##############################################################
+## Phenotypic Selection Analysis of Traits by Final Density ##
+##############################################################
+
+# Load dataframe
+data <- read.csv("/Users/brandonhendrickson/Documents/Github_Projects/M_guttatus_ReproductiveAllocation/Data/csv/standardized_data.csv")
+
+# Create the trait List
+trait_list <- c("flower_number_1_std", "D2Flowering_std", "pollen_avg_std", "ff_height_std", "total_node_number_std", "prop_early_growth_std", "final_height_std", "veg_weight_std", "leaf_area_std")
+
+# Remove NA from yield
+data <- data[!is.na(data$yield), ]
+
+#Make Density a Factor
+data$Final_Density <- as.factor(data$Final_Density)
+
+# Run Phenotypic Selection Analysis using yield as the fitness measure and the traits in as predictors
+psa_list <- list()
+for(trait in trait_list){
+    psa <- lm(yield ~ data[[trait]], data = data)
+    psa_list[[trait]] <- psa
+}
+
+# Run Phenotypic Selection Analysis using yield as the fitness measure and the traits in as predictors
+psa_list_FD <- list()
+for (density in unique(data$Final_Density)) {
+    for (trait in trait_list) {
+        psa <- lm(yield ~ data[[trait]], data = data)
+        psa_list_FD[[paste(density, trait, sep = "_")]] <- psa
+    }
+}
+
+# Initialize an empty data frame
+results <- data.frame(Trait = character(), Density = character(), Estimate = numeric())
+
+for (density in unique(data$Final_Density)) {
+    for (trait in trait_list) {
+        psa <- lm(data[data$Final_Density == density, "yield"] ~ data[data$Final_Density == density, trait], data = data[data$Final_Density == density, ])
+        psa_list_FD[[paste(density, trait, sep = "_")]] <- psa
+
+        # Extract the model estimate for the trait
+        estimate <- coef(psa)[2]
+
+        # Add the result into the data frame
+        results <- rbind(results, data.frame(Trait = trait, Density = as.character(density), Estimate = estimate))
+    }
+}
+
+# Load dataframe
+data <- read.csv("/Users/brandonhendrickson/Documents/Github_Projects/M_guttatus_ReproductiveAllocation/Data/csv/standardized_data_F.csv")
+
+# Create the trait List
+trait_list <- c("flower_number_1_std", "D2Flowering_std", "pollen_avg_std", "ff_height_std", "total_node_number_std", "prop_early_growth_std", "final_height_std", "veg_weight_std", "leaf_area_std")
+
+# Remove NA from yield
+data <- data[!is.na(data$yield), ]
+
+#Make Density a Factor
+data$Final_Density <- as.factor(data$Final_Density)
+
+# Run Phenotypic Selection Analysis using yield as the fitness measure and the traits in as predictors
+psa_list <- list()
+for(trait in trait_list){
+    psa <- lm(yield ~ data[[trait]], data = data)
+    psa_list[[trait]] <- psa
+}
+
+# Run Phenotypic Selection Analysis using yield as the fitness measure and the traits in as predictors
+psa_list_FD <- list()
+for (density in unique(data$Final_Density)) {
+    for (trait in trait_list) {
+        psa <- lm(yield ~ data[[trait]], data = data)
+        psa_list_FD[[paste(density, trait, sep = "_")]] <- psa
+    }
+}
+
+# Initialize an empty data frame
+results_F <- data.frame(Trait = character(), Density = character(), Estimate_F = numeric())
+
+for (density in unique(data$Final_Density)) {
+    for (trait in trait_list) {
+        psa <- lm(data[data$Final_Density == density, "yield"] ~ data[data$Final_Density == density, trait], data = data[data$Final_Density == density, ])
+        psa_list_FD[[paste(density, trait, sep = "_")]] <- psa
+
+        # Extract the model estimate for the trait
+        estimate <- coef(psa)[2]
+
+        # Add the result into the data frame
+        results_F <- rbind(results_F, data.frame(Trait = trait, Density = as.character(density), Estimate_F = estimate))
+    }
+}
+
+results_big <- merge(results, results_F, by = c("Trait", "Density"))
+
+# Write out the results to a CSV file
+write.csv(results_big, "/Users/brandonhendrickson/Documents/Github_Projects/M_guttatus_ReproductiveAllocation/Data/csv/phenotype_selection.csv", row.names = FALSE)
+
+# Split the results data frame by 'Trait'
+results_split <- split(results_big, results_big$Trait)
+
+# Get the number of unique traits
+num_traits <- length(unique(results_big$Trait))
+
+#Y labels list 
+y_labels <- c("# Flowers", "Flowering Date", "Pollen Number", "Height @ Flower", "Node Number", "Early Growth", "Final Height", "Biomass", "Leaf Area")
+# Create a ggplot for each trait
+plots <- lapply(1:num_traits, function(i) {
+    data <- results_split[[i]]
+    p <- ggplot(data, aes(x = Density)) +
+        geom_point(aes(y = Estimate),color = "black") +
+        geom_point(aes(y = Estimate_F), color = "red") +
+        geom_line(aes(y = Estimate), group = 1, color = "black") +
+        geom_line(aes(y = Estimate_F), group = 1, color = "red") +
+        labs(x = NULL, y = y_labels[i]) +
+        theme_light() +
+        theme(
+            text = element_text(family = "Times New Roman", size = 12),
+            plot.title = element_text(hjust = 0.5),
+            axis.text.x = element_text(size = 12),
+            axis.text.y = element_text(size = 12)
+        ) + 
+        scale_y_continuous(labels = function(x) format(round(x, 3)), breaks = function(x) pretty(x, n = 3))
+    # Add the x-axis label for the last three plots
+    if(i > num_traits - 3) {
+        p <- p + labs(x = "Density")
+    }
+    return(p)
+})
+# Arrange the plots in one column
+combined_plot <- ggarrange(plotlist = plots, ncol = 3, nrow = 3)
+
+# Save the plots as a PDF
+ggsave(filename = "phenotype_selection.pdf", plot = combined_plot, device = cairo_pdf, width = 8, height = 6)
 
 ############################################################################################################
 ## General Response of Fitness, Phenology, and Reproductive Allocation to Growing Length and Competition ###
@@ -99,10 +236,37 @@ results_glm_min_aic <- merge(results_glm, min_aic, by = c("Response", "AIC"))
 # Print the results
 print(results_glm_min_aic)
 
-tab_model(aov(glm_models[["D2Flowering:age_Final_Density_ID"]]),aov(glm_models[["flower_number_1:age_Final_Density_ID"]]),aov(glm_models[["pollen_avg:age_Final_Density"]]),aov(glm_models[["yield:age_Final_Density_ID"]]),show.aic = TRUE)
+for (i in 1:length(results_glm_min_aic)) {
+    print(summary(aov(glm_models[[results_glm_min_aic$Model[i]]])))
+}
 
+# Initialize an empty dataframe to store the results
+results_df <- data.frame(Predictor = character(), Trait = character(), Estimate = numeric(), Pr_F = numeric(), F_value = numeric(), Sum_Sq = numeric(), Mean_Sq = numeric(), stringsAsFactors = FALSE)
 
-
+# Loop over each model in the models list
+for(trait in results_glm_min_aic$Model) {
+    # Get the model
+    model <- glm_models[[trait]]
+    
+    # Get the ANOVA table
+    anova_table <- summary(aov(model))
+    
+    # Loop over each coefficient and row in the ANOVA table
+    for (i in 2:nrow(anova_table[[1]])) {
+        # Get the estimate
+        estimate <- coef(model)[i][[1]]
+        
+        # Get the "Pr(>F)", "F value", "Sum Sq", and "Mean Sq"
+        pr_f <- anova_table[[1]][i-1, "Pr(>F)"]
+        f_value <- anova_table[[1]][i-1, "F value"]
+        sum_sq <- anova_table[[1]][i-1, "Sum Sq"]
+        mean_sq <- anova_table[[1]][i - 1, "Mean Sq"]
+        predictor <- rownames(anova_table[[1]])[i-1]
+        
+        # Add the result to the results dataframe
+        results_df <- rbind(results_df, data.frame(Predictor = predictor, Trait = trait, Estimate = estimate, Pr_F = pr_f, F_value = f_value, Sum_Sq = sum_sq, Mean_Sq = mean_sq, stringsAsFactors = FALSE))
+    }
+}
 ###############################################################
 ##Pollen Trade-Offs between Fittest and Least Fit Individuals##
 ###############################################################
@@ -122,6 +286,12 @@ data[numeric_cols] <- lapply(data[numeric_cols], function(x) {
 # Create a list of predictors to include in the model
 predictors <- c("age", "F_LF", "flower_number_1","Final_Density")
 
+# Generate all combinations of predictors
+combinations <- lapply(1:length(predictors), function(x) combn(predictors, x, simplify = FALSE))
+
+# Flatten the list
+combinations <- unlist(combinations, recursive = FALSE)
+
 # Remove rows with NA in any of the specified columns
 data_smalls <- data[complete.cases(data[, predictors]), ]
 
@@ -131,78 +301,26 @@ glm_models_pollen <- list()
 # Remove NA values from "pollen_avg"
 data_smalls <- data_smalls[!is.na(data_smalls$pollen_avg), ]
 
-# Loop over the predictors
-for (i in 1:length(predictors)) {
-    # Create a formula for the model
-    formula <- as.formula(paste("log(pollen_avg) ~", predictors[i]))
+for (predictor_combination in combinations) {
+    # Determine the family based on the trait
+    family <- gaussian
 
-    # Fit the GLM model
-    model <- glm(formula, data = data_smalls, family = gaussian)
-
-    # Add the model to the list
-    glm_models_pollen[[paste(predictors[i], sep = "_")]] <- model
-}
-
-# Loop over the predictors
-for (i in 1:(length(predictors) - 1)) {
-    for (j in (i + 1):length(predictors)) {
-        # Create a formula for the model with independent effects and interaction
-        predictors_subset <- c(predictors[i], predictors[j])
-        interactions_two_way <- combn(predictors_subset, 2)
-        interaction_terms_two_way <- apply(interactions_two_way, 2, function(x) paste(x, collapse = ":"))
-        formula <- as.formula(paste("log(pollen_avg) ~", predictors[i], "+", predictors[j], "+", paste(interaction_terms_two_way, collapse = "+")))
-        
-        # Fit the GLM model
-        model <- glm(formula, data = data_smalls, family = gaussian)
-        
-        # Add the model to the list
-        glm_models_pollen[[paste(predictors[i], predictors[j], sep = ":")]] <- model
+    # Check if more than one predictor is used
+    if (length(predictor_combination) > 1) {
+        # Create the formula with all two-way and three-way interactions
+        formula <- as.formula(paste("log(pollen_avg) ~ (", paste(predictor_combination, collapse = " + "), ")^3"))
+    } else {
+        # Create the formula without interactions
+        formula <- as.formula(paste("log(pollen_avg) ~", paste(predictor_combination, collapse = " + ")))
     }
+
+    # Fit the model
+    model <- glm(formula, data = data_smalls, family = family)
+
+    # Store the model in the list
+    glm_models_pollen[[paste(predictor_combination, collapse = ":")]] <- model
 }
 
-# Loop over the predictors
-for (i in 1:(length(predictors) - 2)) {
-    for (j in (i + 1):(length(predictors) - 1)) {
-        for (k in (j + 1):length(predictors)) {
-            # Create a formula for the model with independent effects and interaction
-            predictors_subset <- c(predictors[i], predictors[j], predictors[k])
-            interactions_two_way <- combn(predictors_subset, 2)
-            interactions_three_way <- combn(predictors_subset, 3)
-            interaction_terms_two_way <- apply(interactions_two_way, 2, function(x) paste(x, collapse = ":"))
-            interaction_terms_three_way <- apply(interactions_three_way, 2, function(x) paste(x, collapse = ":"))
-            formula <- as.formula(paste("log(pollen_avg) ~", predictors[i], "+", predictors[j], "+", predictors[k], "+", paste(interaction_terms_two_way, collapse = "+"), "+", paste(interaction_terms_three_way, collapse = "+")))
-            
-            # Fit the GLM model
-            model <- glm(formula, data = data_smalls, family = gaussian)
-            
-            # Add the model to the list
-            glm_models_pollen[[paste(predictors[i], predictors[j], predictors[k], sep = ":")]] <- model
-        }
-    }
-}
-
-# Loop over the predictors
-for (i in 1:(length(predictors)-3)) {
-    for (j in (i+1):(length(predictors)-2)) {
-        for (k in (j+1):(length(predictors)-1)) {
-            for (l in (k+1):length(predictors)) {
-                # Create a formula for the model with independent effects and interaction
-                predictors_subset <- c(predictors[i], predictors[j], predictors[k], predictors[l])
-                interactions_two_way <- combn(predictors_subset, 2)
-                interactions_three_way <- combn(predictors_subset, 3)
-                interaction_terms_two_way <- apply(interactions_two_way, 2, function(x) paste(x, collapse = ":"))
-                interaction_terms_three_way <- apply(interactions_three_way, 2, function(x) paste(x, collapse = ":"))
-                formula <- as.formula(paste("log(pollen_avg) ~", predictors[i], "+", predictors[j], "+", predictors[k], "+", predictors[l], "+", paste(interaction_terms_two_way, collapse = "+"), "+", paste(interaction_terms_three_way, collapse = "+")))
-                
-                # Fit the GLM model
-                model <- glm(formula, data = data_smalls, family = gaussian)
-                
-                # Add the model to the list
-                glm_models_pollen[[paste(predictors[i], predictors[j], predictors[k], predictors[l], sep = ":")]] <- model
-            }
-        }
-    }
-}
 # Initialize an empty dataframe
 results_glm_pollen <- data.frame(Model = character(), AIC = numeric(), BIC = numeric(), stringsAsFactors = FALSE)
 
@@ -220,9 +338,9 @@ print(results_glm_pollen)
 
 best_pollen<-subset(results_glm_pollen, AIC == min(AIC))[["Model"]]
 
-tab_model(aov(glm_models_pollen[[best]]),show.aic = TRUE)
+tab_model(aov(glm_models_pollen[[best_pollen]]),show.aic = TRUE)
 ##########################################################################
-## Flowering Production Trade-Offs between Fittestt and Least Fit Plants##
+## Flowering Production Trade-Offs between Fittest and Least Fit Plants ##
 ##########################################################################
 #Load modelframe
 data <- read.csv("/Users/brandonhendrickson/Documents/Github_Projects/M_guttatus_ReproductiveAllocation/Data/csv/raw_data.csv")
@@ -238,7 +356,13 @@ data[numeric_cols] <- lapply(data[numeric_cols], function(x) {
   ifelse(x == 0, 0.000001, x)
 })
 # Create a list of predictors to include in the model
-predictors <- c("age", "F_LF", "pollen_avg", "Final_Density")
+predictors <- c("age", "F_LF", "pollen_avg","Final_Density")
+
+# Generate all combinations of predictors
+combinations <- lapply(1:length(predictors), function(x) combn(predictors, x, simplify = FALSE))
+
+# Flatten the list
+combinations <- unlist(combinations, recursive = FALSE)
 
 # Remove rows with NA in any of the specified columns
 data_smalls <- data[complete.cases(data[, predictors]), ]
@@ -246,80 +370,27 @@ data_smalls <- data[complete.cases(data[, predictors]), ]
 # Initialize a list to store the models
 glm_models_flower <- list()
 
-# Remove NA values from "flower_number_1"
-data_smalls <- data[!is.na(data$flower_number_1), ]
+# Remove NA values from "pollen_avg"
+data_smalls <- data_smalls[!is.na(data_smalls$flower_number_1), ]
 
-# Loop over the predictors
-for (i in 1:length(predictors)) {
-    # Create a formula for the model
-    formula <- as.formula(paste("flower_number_1 ~", predictors[i]))
+for (predictor_combination in combinations) {
+    # Determine the family based on the trait
+    family <- gaussian
 
-    # Fit the GLM model
-    model <- glm(formula, data = data_smalls, family = Gamma(link = "log"))
-
-    # Add the model to the list
-    glm_models_flower[[paste(predictors[i], sep = ":")]] <- model
-}
-
-# Loop over the predictors
-for (i in 1:(length(predictors) - 1)) {
-    for (j in (i + 1):length(predictors)) {
-        # Create a formula for the model with independent effects and interaction
-        predictors_subset <- c(predictors[i], predictors[j])
-        interactions_two_way <- combn(predictors_subset, 2)
-        interaction_terms_two_way <- apply(interactions_two_way, 2, function(x) paste(x, collapse = ":"))
-        formula <- as.formula(paste("flower_number_1 ~", predictors[i], "+", predictors[j], "+", paste(interaction_terms_two_way, collapse = "+")))
-        
-        # Fit the GLM model
-        model <- glm(formula, data = data_smalls, family = Gamma(link = "log"))
-        
-        # Add the model to the list
-        glm_models_flower[[paste(predictors[i], predictors[j], sep = ":")]] <- model
+    # Check if more than one predictor is used
+    if (length(predictor_combination) > 1) {
+        # Create the formula with all two-way and three-way interactions
+        formula <- as.formula(paste("flower_number_1 ~ (", paste(predictor_combination, collapse = " + "), ")^3"))
+    } else {
+        # Create the formula without interactions
+        formula <- as.formula(paste("flower_number_1 ~", paste(predictor_combination, collapse = " + ")))
     }
-}
 
-# Loop over the predictors
-for (i in 1:(length(predictors) - 2)) {
-    for (j in (i + 1):(length(predictors) - 1)) {
-        for (k in (j + 1):length(predictors)) {
-            # Create a formula for the model with independent effects and interaction
-            predictors_subset <- c(predictors[i], predictors[j], predictors[k])
-            interactions_two_way <- combn(predictors_subset, 2)
-            interactions_three_way <- combn(predictors_subset, 3)
-            interaction_terms_two_way <- apply(interactions_two_way, 2, function(x) paste(x, collapse = ":"))
-            interaction_terms_three_way <- apply(interactions_three_way, 2, function(x) paste(x, collapse = ":"))
-            formula <- as.formula(paste("flower_number_1 ~", predictors[i], "+", predictors[j], "+", predictors[k], "+", paste(interaction_terms_two_way, collapse = "+"), "+", paste(interaction_terms_three_way, collapse = "+")))
-            
-            # Fit the GLM model
-            model <- glm(formula, data = data_smalls, family = Gamma(link = "log"))
-            
-            # Add the model to the list
-            glm_models_flower[[paste(predictors[i], predictors[j], predictors[k], sep = ":")]] <- model
-        }
-    }
-}
+    # Fit the model
+    model <- glm(formula, data = data_smalls, family = Gamma)
 
-# Loop over the predictors
-for (i in 1:(length(predictors)-3)) {
-    for (j in (i+1):(length(predictors)-2)) {
-        for (k in (j+1):(length(predictors)-1)) {
-            for (l in (k+1):length(predictors)) {
-                # Create a formula for the model with independent effects and interaction
-                predictors_subset <- c(predictors[i], predictors[j], predictors[k], predictors[l])
-                interactions_two_way <- combn(predictors_subset, 2)
-                interactions_three_way <- combn(predictors_subset, 3)
-                interaction_terms_two_way <- apply(interactions_two_way, 2, function(x) paste(x, collapse = ":"))
-                interaction_terms_three_way <- apply(interactions_three_way, 2, function(x) paste(x, collapse = ":"))
-                formula <- as.formula(paste("flower_number_1 ~", predictors[i], "+", predictors[j], "+", predictors[k], "+", predictors[l], "+", paste(interaction_terms_two_way, collapse = "+"), "+", paste(interaction_terms_three_way, collapse = "+")))
-                
-                # Fit the GLM model
-                model <- glm(formula, data = data_smalls, family = Gamma(link = "log"))
-                
-                # Add the model to the list
-                glm_models_flower[[paste(predictors[i], predictors[j], predictors[k], predictors[l], sep = ":")]] <- model
-            }
-        }
-    }
+    # Store the model in the list
+    glm_models_flower[[paste(predictor_combination, collapse = ":")]] <- model
 }
 # Initialize an empty data_smallsframe
 results_glm_flower <- data.frame(Model = integer(), AIC = numeric(), BIC = numeric(), stringsAsFactors = FALSE)
@@ -338,7 +409,80 @@ print(results_glm_flower)
 
 best_flower<-subset(results_glm_flower, AIC == min(AIC))[["Model"]]
 
-tab_model(aov(glm_models_flower[[best]]), show.aic = TRUE)
+tab_model(aov(glm_models_flower[[best_flower]]), show.aic = TRUE)
+
+############################################################
+## Day to First Flowering by Age, F_LF, and Final Density ##
+############################################################
+
+#Load modelframe
+data <- read.csv("/Users/brandonhendrickson/Documents/Github_Projects/M_guttatus_ReproductiveAllocation/Data/csv/raw_data.csv")
+
+# Convert Final_Density to a factor
+data$Final_Density <- as.factor(data$Final_Density)
+
+#Identify numeric columns
+numeric_cols <- sapply(data, is.numeric)
+
+#Replace 0 with 0.000001
+data[numeric_cols] <- lapply(data[numeric_cols], function(x) {
+  ifelse(x == 0, 0.000001, x)
+})
+# Create a list of predictors to include in the model
+predictors <- c("age", "F_LF", "Final_Density")
+
+# Generate all combinations of predictors
+combinations <- lapply(1:length(predictors), function(x) combn(predictors, x, simplify = FALSE))
+
+# Flatten the list
+combinations <- unlist(combinations, recursive = FALSE)
+
+# Remove rows with NA in any of the specified columns
+data_smalls <- data[complete.cases(data[, predictors]), ]
+
+# Initialize a list to store the models
+glm_models_D2Flowering <- list()
+
+# Remove NA values from "pollen_avg"
+data_smalls <- data_smalls[!is.na(data_smalls$D2Flowering), ]
+
+for (predictor_combination in combinations) {
+    # Determine the family based on the trait
+    family <- gaussian
+
+    # Check if more than one predictor is used
+    if (length(predictor_combination) > 1) {
+        # Create the formula with all two-way and three-way interactions
+        formula <- as.formula(paste("D2Flowering ~ (", paste(predictor_combination, collapse = " + "), ")^3"))
+    } else {
+        # Create the formula without interactions
+        formula <- as.formula(paste("D2Flowering ~", paste(predictor_combination, collapse = " + ")))
+    }
+
+    # Fit the model
+    model <- glm(formula, data = data_smalls, family = family)
+
+    # Store the model in the list
+    glm_models_D2Flowering[[paste(predictor_combination, collapse = ":")]] <- model
+}
+# Initialize an empty data_smallsframe
+results_glm_D2Flowering <- data.frame(Model = integer(), AIC = numeric(), BIC = numeric(), stringsAsFactors = FALSE)
+
+# Perform the tests on the models
+for (i in seq_along(glm_models_D2Flowering)) {
+# Calculate AIC and BIC
+    aic <- AIC(glm_models_D2Flowering[[i]])
+    bic <- BIC(glm_models_D2Flowering[[i]])
+# Add the results to the data_smallsframe
+    results_glm_D2Flowering <- rbind(results_glm_D2Flowering, data.frame(Model = i, AIC = aic, BIC = bic, stringsAsFactors = FALSE))
+}
+
+# Print the results
+print(results_glm_D2Flowering)
+
+best_D2Flowering<-subset(results_glm_D2Flowering, AIC == min(AIC))[["Model"]]
+
+tab_model(aov(glm_models_D2Flowering[[best_D2Flowering]]), show.aic = TRUE)
 
 ######################################################################################
 ## Take the Least Square Means and Standard Error for Predictors from the Best Model##
@@ -356,76 +500,95 @@ means_pollen_avg <- get_means("pollen_avg:age:Final_Density")
 
 
 
-ggplot(means_D2Flowering, aes(x = Final_Density, y = emmean, color = age, group = age)) +
+p4 <- ggplot(means_D2Flowering, aes(x = Final_Density, y = emmean, color = age, group = age)) +
     geom_line(position = position_dodge(width = 0.5)) +
     geom_errorbar(aes(ymin = emmean - SE, ymax = emmean + SE), width = 0.1, position = position_dodge(width = 0.5)) +
     geom_point(position = position_dodge(width = 0.5)) +
-    scale_color_manual(values = wes_palette("Zissou1")) +
+    scale_color_manual(values = wes_palette("FantasticFox1")) +
     labs(
-        title = "Least Square Means and Standard Error \n for Day to Flowering",
         x = "Final Density",
-        y = "Least Square Means"
+        y = "Days to Flowering"
     ) +
-    theme_minimal() +
-    theme(plot.title = element_text(hjust = 0.5))
+    theme_light() +
+    theme(legend.position = "none",
+          text = element_text(family = "Times", size = 12),
+          axis.text = element_text(size = 12))
 
-ggplot(means_flower_number_1, aes(x = Final_Density, y = emmean, color = age, group = age)) +
+p2 <- ggplot(means_flower_number_1, aes(x = Final_Density, y = emmean, color = age, group = age)) +
     geom_line(position = position_dodge(width = 0.5)) +
     geom_errorbar(aes(ymin = emmean - SE, ymax = emmean + SE), width = 0.1, position = position_dodge(width = 0.5)) +
     geom_point(position = position_dodge(width = 0.5)) +
-    scale_color_manual(values = wes_palette("Zissou1")) +
+    scale_color_manual(values = wes_palette("FantasticFox1"),labels = c("1.E" = "0", "2.M" = "15", "3.L" = "30")) +
     labs(
-        title = "Least Square Means and Standard Error \n for Flower Number",
         x = "Final Density",
-        y = "Least Square Means"
+        y = "Flower Number"
     ) +
-    theme_minimal() +
-    theme(plot.title = element_text(hjust = 0.5))
+    theme_light() +
+    theme(text = element_text(family = "Times", size = 12),
+          axis.text = element_text(size = 12),
+          legend.text = element_text(size = 12),
+          legend.position = c(0.4,0.8), 
+          legend.justification = c(0,0)) +
+    guides(color = guide_legend(title = NULL, direction = "horizontal"))
 
-ggplot(means_yield, aes(x = Final_Density, y = emmean, color = age, group = age)) +
+p3 <- ggplot(means_yield, aes(x = Final_Density, y = emmean, color = age, group = age)) +
     geom_line(position = position_dodge(width = 0.5)) +
     geom_errorbar(aes(ymin = emmean - SE, ymax = emmean + SE), width = 0.1, position = position_dodge(width = 0.5)) +
     geom_point(position = position_dodge(width = 0.5)) +
-    scale_color_manual(values = wes_palette("Zissou1")) +
+    scale_color_manual(values = wes_palette("FantasticFox1")) +
     labs(
-        title = "Least Square Means and Standard Error \n for Yield",
         x = "Final Density",
-        y = "Least Square Means"
+        y = "Seed Mass"
     ) +
-    theme_minimal() +
-    theme(plot.title = element_text(hjust = 0.5))
+    theme_light() +
+    theme(legend.position = "none",
+          text = element_text(family = "Times", size = 12),
+          axis.text = element_text(size = 12))
 
-ggplot(means_pollen_avg, aes(x = Final_Density, y = emmean, color = age, group = age)) +
+p1 <- ggplot(means_pollen_avg, aes(x = Final_Density, y = emmean, color = age, group = age)) +
     geom_line(position = position_dodge(width = 0.5)) +
     geom_errorbar(aes(ymin = emmean - SE, ymax = emmean + SE), width = 0.1, position = position_dodge(width = 0.5)) +
     geom_point(position = position_dodge(width = 0.5)) +
-    scale_color_manual(values = wes_palette("Zissou1")) +
+    scale_color_manual(values = wes_palette("FantasticFox1")) +
     labs(
-        title = "Least Square Means and Standard Error \n for Pollen Average",
         x = "Final Density",
-        y = "Least Square Means"
+        y = "Pollen Number"
     ) +
-    theme_minimal() +
-    theme(plot.title = element_text(hjust = 0.5))
+    theme_light() +
+    theme(legend.position = "none",
+          text = element_text(family = "Times", size = 12),
+          axis.text = element_text(size = 12))
+
+# Arrange the plots
+plots <- ggarrange(p1, p2, p3, p4, ncol = 2, nrow = 2)
+
+# Save the plots as a PDF
+ggsave("traits_finalDensity_age.pdf", plots, width = 8, height = 6, units = "in")
+
 
     lsmeans <- emmeans(glm_models_pollen[["age:F_LF:flower_number_1:Final_Density"]], ~ age + Final_Density + F_LF + flower_number_1)
     means <- as.data.frame(summary(lsmeans))
     
     # Calculate the average emmean and SE for each combination of age and Final_Density
     average_means <- aggregate(cbind(emmean, SE) ~ age + Final_Density + F_LF + flower_number_1, data = means, FUN = mean)
-    
-ggplot(average_means, aes(x = Final_Density, y = emmean, color = F_LF, group = F_LF)) +
+p1 <- ggplot(average_means, aes(x = Final_Density, y = emmean, color = F_LF, group = F_LF)) +
     geom_line(position = position_dodge(width = 0.5)) +
     geom_errorbar(aes(ymin = emmean - SE, ymax = emmean + SE), width = 0.1, position = position_dodge(width = 0.5)) +
     geom_point(position = position_dodge(width = 0.5)) +
-    scale_color_manual(values = wes_palette("Zissou1")) +
+    scale_color_manual(values = wes_palette("FantasticFox1"),labels = c("F" = "Fittest", "LF" = "Least Fit","Other"="Other")) +
     labs(
-        title = "Least Square Means and Standard Error \n for Pollen Average",
         x = "Final Density",
-        y = "Least Square Means"
+        y = "Pollen Number"
     ) +
-    theme_minimal() +
-    theme(plot.title = element_text(hjust = 0.5)) +
+    theme_light() +
+    theme(plot.title = element_text(hjust = 0.5),
+          strip.text = element_blank(),
+          legend.position = c(0.98, 0.65),
+          legend.justification = c(1, 0),
+          text = element_text(family = "Times", size = 12),
+          axis.text = element_text(size = 12),
+          legend.text = element_text(size = 12)) +
+    guides(color = guide_legend(title = NULL, direction = "horizontal")) + 
     facet_wrap(~age)
 
     lsmeans <- emmeans(glm_models_flower[[15]], ~ age + Final_Density + F_LF + pollen_avg)
@@ -434,16 +597,55 @@ ggplot(average_means, aes(x = Final_Density, y = emmean, color = F_LF, group = F
     # Calculate the average emmean and SE for each combination of age and Final_Density
     average_means <- aggregate(cbind(emmean, SE) ~ age + Final_Density + F_LF + pollen_avg, data = means, FUN = mean)
 
-ggplot(average_means, aes(x = Final_Density, y = emmean, color = F_LF, group = F_LF)) +
+p2 <- ggplot(average_means, aes(x = Final_Density, y = emmean, color = F_LF, group = F_LF)) +
     geom_line(position = position_dodge(width = 0.5)) +
     geom_errorbar(aes(ymin = emmean - SE, ymax = emmean + SE), width = 0.1, position = position_dodge(width = 0.5)) +
     geom_point(position = position_dodge(width = 0.5)) +
-    scale_color_manual(values = wes_palette("Zissou1")) +
+    scale_color_manual(values = wes_palette("FantasticFox1"), labels = c("F" = "Fittest", "LF" = "Least Fit", "Other" = "Other")) +
     labs(
-        title = "Least Square Means and Standard Error \n for Flower Number",
         x = "Final Density",
-        y = "Least Square Means"
+        y = "Flower Number"
     ) +
-    theme_minimal() +
-    theme(plot.title = element_text(hjust = 0.5)) +
+    theme_light() +
+    theme(
+        plot.title = element_text(hjust = 0.5),
+        strip.text = element_blank(),
+        legend.position = "none",
+        text = element_text(family = "Times", size = 12),
+        axis.text = element_text(size = 12),
+        legend.text = element_text(size = 12)
+    ) +
+    guides(color = guide_legend(title = NULL)) +
     facet_wrap(~age)
+
+    lsmeans <- emmeans(glm_models_D2Flowering[[7]], ~ age + Final_Density + F_LF)
+    means <- as.data.frame(summary(lsmeans))
+    
+    # Calculate the average emmean and SE for each combination of age and Final_Density
+    average_means <- aggregate(cbind(emmean, SE) ~ age + Final_Density + F_LF, data = means, FUN = mean)
+
+p3 <- ggplot(average_means, aes(x = Final_Density, y = emmean, color = F_LF, group = F_LF)) +
+    geom_line(position = position_dodge(width = 0.5)) +
+    geom_errorbar(aes(ymin = emmean - SE, ymax = emmean + SE), width = 0.1, position = position_dodge(width = 0.5)) +
+    geom_point(position = position_dodge(width = 0.5)) +
+    scale_color_manual(values = wes_palette("FantasticFox1"), labels = c("F" = "Fittest", "LF" = "Least Fit", "Other" = "Other")) +
+    labs(
+        x = "Final Density",
+        y = "Days to Flowering"
+    ) +
+    theme_light() +
+    theme(
+        plot.title = element_text(hjust = 0.5),
+        strip.text = element_blank(),
+        legend.position = "none",
+        text = element_text(family = "Times", size = 12),
+        axis.text = element_text(size = 12),
+        legend.text = element_text(size = 12)
+    ) +
+    guides(color = guide_legend(title = NULL)) +
+    facet_wrap(~age)
+
+plots <- ggarrange(p1, p2, p3, nrow = 3)
+
+# Save the plots as a PDF
+ggsave("traits_finalDensity_age_Fitness.pdf", plots, width = 10, height = 6, units = "in")
